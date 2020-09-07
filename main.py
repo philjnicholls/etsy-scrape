@@ -1,3 +1,5 @@
+# TODO Pass a search string instead of s search URL
+# TODO Check for existing file and prompt for overwriting
 # TODO Option to autoprocess failures
 # TODO Create a test mode which requires no internet
 
@@ -6,7 +8,12 @@ import requests
 import argparse
 from bs4 import BeautifulSoup
 
+import element_paths as ep
+
+
 def get_page(url, retry_count=0):
+    # Recursive function to try getting page 5 times before failing
+
     try:
         page = requests.get(url, timeout=5)
     except requests.ConnectionError as error:
@@ -22,29 +29,50 @@ def get_page(url, retry_count=0):
 
     return page
 
-def log_error(url, error, fail_path):
-    if fail_path:
-        with open(fail_path, 'a') as f:
-            f.write(','.join([url, error]))
+def log_error(url, error, fail_log):
+    # Log error to a file
 
-def scrape_etsy(url, limit, get_details, output, fail_path):
+    if fail_log:
+        with open(fail_log, 'a') as f:
+            f.write(','.join([url, str(error)]))
+            f.write('\n')
+
+def get_elements(soup, element=None, attribute=None,
+                attribute_value=None):
+    if element:
+        return soup.select(element)
+    elif not element and attribute and not attribute_value:
+        return [item for item in soup.find_all() if
+                          attribute in item.attrs]
+
+def get_element(*args, **kwargs):
+    elements = get_elements(*args, **kwargs)
+    if len(elements) > 1:
+        raise ValueError(f'Found more than one element for {kwargs}')
+    if len(elements) < 1:
+        raise ValueError(f'Failed to find an element for {kwargs}')
+    else:
+        return elements[0]
+
+def scrape_etsy(url, limit, get_details=False, output='output.csv',
+                fail_log='fail.log', message_callback=print):
     count = 1
     success_count = 0
     fail_count = 0
 
     while not limit or (limit and count <= limit):
-        print(f'Processing {url}')
+        message_callback(f'Processing {url}')
         try:
             page = get_page(url)
         except requests.exceptions.RequestException as e:
             fail_count += 1
-            log_error(url, e, fail_path)
+            log_error(url, e, fail_log)
             break
 
         search_results = BeautifulSoup(page.content, 'html.parser')
-        search_listings = [item for item in search_results.find_all() if
-                          'data-search-results' in item.attrs]
-        results = search_listings[0].find_all('li', 'wt-list-unstyled')
+        search_listing = get_element(search_results,
+                                       attribute='data-search-results')
+        results = get_elements(search_listing, element='li.wt-list-unstyled')
 
         for result in results:
             csv_entry = {
@@ -52,21 +80,32 @@ def scrape_etsy(url, limit, get_details, output, fail_path):
                 'currency': '',
                 'cost': '',
             }
-            print('.', end='', flush=True)
-            links = result.find_all('a', 'listing-link')
-            if len(links) > 0:
-                # Found some links
-                csv_entry['url'] = links[0]['href']
+            message_callback('.', end='', flush=True)
 
-            currencies = result.find_all('span', 'currency-symbol')
-            if len(currencies) > 0:
-                # Found some links
-                csv_entry['currency'] = currencies[0].text
+            try:
+                csv_entry['url'] = get_element(result, element='a.listing-link')['href']
+            except ValueError as e:
+                fail_count += 1
+                log_error(url, e, fail_log)
+                next
 
-            costs = result.find_all('span', 'currency-value')
-            if len(costs) > 0:
-                # Found some links
-                csv_entry['cost'] = costs[0].text.replace(',','')
+            # TODO Deal with promotions properly
+            try:
+                csv_entry['currency'] = get_element(result,
+                                                    element='span.currency-symbol').text
+            except ValueError as e:
+                fail_count += 1
+                log_error(url, e, fail_log)
+                next
+
+            try:
+                csv_entry['cost'] = get_element(result,
+                                                    element='span.currency-value').text.replace(',',
+                                                                                                '')
+            except ValueError as e:
+                fail_count += 1
+                log_error(url, e, fail_log)
+                next
 
             if get_details:
                 csv_entry['shipping_currency'] = ''
@@ -76,7 +115,7 @@ def scrape_etsy(url, limit, get_details, output, fail_path):
                 except (requests.exceptions.ConnectionError,
                         requests.exceptions.MissingSchema) as e:
                     fail_count += 1
-                    log_error(csv_entry['url'], e, fail_path)
+                    log_error(csv_entry['url'], e, fail_log)
                     next
 
                 detail = BeautifulSoup(detail_page.content, 'html.parser')
@@ -93,7 +132,7 @@ def scrape_etsy(url, limit, get_details, output, fail_path):
 
             success_count += 1
 
-        print('')
+        message_callback('')
         try:
             url = search_results.select('nav.search-pagination a.wt-btn')[-1]['href']
         except KeyError:
@@ -101,7 +140,7 @@ def scrape_etsy(url, limit, get_details, output, fail_path):
 
         count += 1
 
-    print(f'Scraped {success_count} products, failed to scrap {fail_count}.')
+    message_callback(f'Scraped {success_count} products, failed to scrap {fail_count}.')
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Scrape product information'
@@ -112,7 +151,7 @@ def parse_args():
                         type=str,
                         default='output.csv')
     parser.add_argument('-f', '--fail-log', help='Filepath to failure log',
-                        type=argparse.FileType('a'))
+                        type=str, default='fail.log')
     parser.add_argument('-l', '--limit', help='Limit scraping to first n pages.',
                         type=int)
     parser.add_argument('-d', '--get-details', help='Get full details for a'
@@ -125,6 +164,4 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    scrape_etsy(url=args['url'], limit=args['limit'],
-                get_details=args['get_details'],
-                output=args['output'], fail_path=args['fail_log'])
+    scrape_etsy(**args)

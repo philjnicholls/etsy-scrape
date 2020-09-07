@@ -129,5 +129,5 @@ dmypy.json
 .pyre/
 
 # CSVs
-.csv
-.log
+*.csv
+*.log

@@ -58,4 +58,6 @@ if __name__ == '__main__':
     args = parse_args()
 
     if check_existing_files(args['output'], args['fail_log']):
-        scrape_etsy.scrape_etsy(**args, progress_callback=lambda m: print('.', flush=True, end=''))
+        scrape_etsy.scrape_etsy(**args,
+                                message_callback=lambda m: print(f'\n{m}'),
+                                progress_callback=lambda m: print('.', flush=True, end=''))

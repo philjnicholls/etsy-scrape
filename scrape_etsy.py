@@ -177,7 +177,7 @@ def scrape_etsy(url,
                 get_details=False,
                 output='output.csv',
                 fail_log='fail.log',
-                message_callback=lambda m: print(m),
+                message_callback=None,
                 progress_callback=None):
     """Navigate through the results of an Etsy search, extract
     product details to a CSV file and log failures
@@ -203,7 +203,8 @@ def scrape_etsy(url,
     __write_csv_header(output, get_details)
 
     while not limit or (limit and product_count <= limit):
-        message_callback(f'Processing {url}')
+        if message_callback:
+            message_callback(f'Processing {url}')
 
         try:
             page = __get_page(url)
@@ -240,5 +241,6 @@ def scrape_etsy(url,
         except KeyError:
             break
 
-    message_callback(f'Scraped {success_count} products, failed to scrape '
+    if message_callback:
+        message_callback(f'Scraped {success_count} products, failed to scrape '
                      f'{fail_count}.')

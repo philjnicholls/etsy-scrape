@@ -15,7 +15,7 @@ Usage: main.py [-h] [-f FAIL_LOG] [-l LIMIT] [-d] url output
 Scrape product information from etsy.com into a CSV file.
 
 positional arguments:
-  url                   URL for the first page of Etsy searchresults
+  url                   URL for the first page of Etsy search results
   output                Filepath to output csv
 
 optional arguments:

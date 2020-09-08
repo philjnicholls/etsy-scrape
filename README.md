@@ -28,4 +28,5 @@ optional arguments:
   ```
 ## Examples
 To extract the details of the first 100 face masks found on Etsy:
+
 ```main.py 'https://www.etsy.com/il-en/search?q=face-mask' 'face_masks.csv' -d -l 100```

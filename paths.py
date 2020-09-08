@@ -1,0 +1,8 @@
+SEARCH_RESULT = 'div[data-search-results] > div > ul > li.wt-list-unstyled'
+RESULT_LINK = 'a.listing-link'
+SEARCH_PAGE_BUTTON='nav.search-pagination a.wt-btn'
+PRICE_CURRENCY='span.currency-symbol'
+PRICE_VALUE='span.currency-value'
+TITLE='div[data-component=listing-page-title-component] > h1'
+SHIPPING_CURRENCY='div[data-estimated-shipping] > div > p > span.currency-symbol'
+SHIPPING_VALUE='div[data-estimated-shipping] > div > p > span.currency-value'

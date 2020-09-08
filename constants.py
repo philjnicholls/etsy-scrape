@@ -1,0 +1,2 @@
+RETRY_COUNT = 5
+TIMEOUT = 5

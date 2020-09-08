@@ -2,7 +2,8 @@
 Scraping tool for Etsy
 
 ## Install
-Install requirements with ```pip install requirements.txt```
+Requires Python 3.5+
+Install requirements with ```pip install -r requirements.txt```
 
 # Usage
 You can get stuck in using the module etsy_scrape.py and integrate into your own projects or if you want to just start extracting some CSVs:

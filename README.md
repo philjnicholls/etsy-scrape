@@ -3,6 +3,7 @@ Scraping tool for Etsy
 
 ## Install
 Requires Python 3.5+
+
 Install requirements with ```pip install -r requirements.txt```
 
 # Usage

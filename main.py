@@ -15,7 +15,7 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description='Scrape product information'
                                      ' from etsy.com into a CSV file.')
-    parser.add_argument('url', help='URL for the first page of Etsy search'
+    parser.add_argument('url', help='URL for the first page of Etsy search '
                         'results', type=str)
     parser.add_argument('output', help='Filepath to output csv',
                         type=str,

@@ -2,10 +2,12 @@
 # TODO Option to autoprocess failures
 # TODO Create a test mode which requires no internet/caching
 # TODO Tests
+# TODO Check for memcached and cope if not installed
 
 import csv
 import requests
 from bs4 import BeautifulSoup
+from pymemcache.client import base
 
 import constants as CT
 import paths as PATH
@@ -23,21 +25,28 @@ def __get_page(url, retry_count=0):
     str: Content of the page
     """
 
+    #TODO Set cache time limit
+    client = base.Client(('localhost', 11211))
+    cached_page = client.get(url)
+    if cached_page:
+        return cached_page
+    else:
+        try:
+            page = requests.get(url, timeout=CT.TIMEOUT)
+        except requests.ConnectionError as error:
+            if retry_count < CT.RETRY_COUNT:
+                page = __get_page(url, retry_count=retry_count+1)
+            else:
+                raise requests.ConnectionError
+        except requests.Timeout as error:
+            if retry_count < 5:
+                page = __get_page(url, retry_count=retry_count+1)
+            else:
+                raise requests.ConnectionError
 
-    try:
-        page = requests.get(url, timeout=CT.TIMEOUT)
-    except requests.ConnectionError as error:
-        if retry_count < CT.RETRY_COUNT:
-            page = __get_page(url, retry_count=retry_count+1)
-        else:
-            raise requests.ConnectionError
-    except requests.Timeout as error:
-        if retry_count < 5:
-            page = __get_page(url, retry_count=retry_count+1)
-        else:
-            raise requests.ConnectionError
+        client.set(url, page.content, expiry=CT.CACHE_EXPIRY)
 
-    return page
+        return page.content
 
 def __log_error(url, error, fail_log):
     """Log errors to a CSV file
@@ -160,7 +169,7 @@ def __get_product(result, get_details):
         # Get the product listing page
         detail_page = __get_page(csv_entry['url'])
 
-        detail = BeautifulSoup(detail_page.content, 'html.parser')
+        detail = BeautifulSoup(detail_page, 'html.parser')
         csv_entry['title'] = detail.select_one(PATH.TITLE).text.strip()
 
         if detail.select_one(PATH.SHIPPING_CURRENCY):
@@ -213,7 +222,7 @@ def scrape_etsy(url,
             __log_error(url, e, fail_log)
             break
 
-        search_results = BeautifulSoup(page.content, 'html.parser')
+        search_results = BeautifulSoup(page, 'html.parser')
         results = search_results.select(PATH.SEARCH_RESULT)
 
         for result in results:

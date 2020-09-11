@@ -3,6 +3,8 @@
 # TODO Create a test mode which requires no internet/caching
 # TODO Tests
 # TODO Check for memcached and cope if not installed
+# TODO Add commmand line and library options for caching
+# TODO Create module levels variables for settings
 
 import csv
 import requests
@@ -14,7 +16,8 @@ import paths as PATH
 
 def __get_page(url, retry_count=0):
     """Recursive function to try getting
-    page TIMEOUT times before failing
+    page TIMEOUT times before failing, and
+    cache using memcached
 
     Parameters:
     url (str): URL to get
@@ -25,7 +28,6 @@ def __get_page(url, retry_count=0):
     str: Content of the page
     """
 
-    #TODO Set cache time limit
     client = base.Client(('localhost', 11211))
     cached_page = client.get(url)
     if cached_page:

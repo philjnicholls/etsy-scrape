@@ -6,7 +6,8 @@ Requires Python 3.5+
 
 Install requirements with ```pip install -r requirements.txt```
 
-	Install [memcached](https://github.com/memcached/memcached/wiki/Install)
+### Optional
+Install [memcached](https://github.com/memcached/memcached/wiki/Install)
 
 # Usage
 You can get stuck in using the module etsy_scrape.py and integrate into your own projects or if you want to just start extracting some CSVs:

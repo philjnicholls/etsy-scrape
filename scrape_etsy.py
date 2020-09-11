@@ -1,4 +1,4 @@
-# TODO Make generic, pull fields and select strings from dictionary
+# TODO Callback for failures
 # TODO Option to autoprocess failures
 # TODO Create a test mode which requires no internet/caching
 # TODO Tests
@@ -6,6 +6,7 @@
 # TODO Add commmand line and library options for caching
 # TODO Create module levels variables for settings
 
+import re
 import csv
 import requests
 from bs4 import BeautifulSoup
@@ -13,6 +14,7 @@ from pymemcache.client import base
 
 import constants as CT
 import paths as PATH
+from exceptions import MissingValueException
 
 def __get_page(url, retry_count=0):
     """Recursive function to try getting
@@ -45,6 +47,8 @@ def __get_page(url, retry_count=0):
                 page = __get_page(url, retry_count=retry_count+1)
             else:
                 raise requests.ConnectionError
+
+        #TODO Handle returning of a byte array from requests.get
 
         client.set(url, page.content, expire=CT.CACHE_EXPIRE)
 
@@ -121,19 +125,37 @@ def __write_csv_header(output, get_details):
                             doublequote=True)
         writer.writeheader()
 
-def __get_value(soup, path, attribute=None, required=False):
+def __get_value(tag, path, attribute=None, required=True, remove=None):
+    """Retrieve a value from a BeautifulSoup
+
+    Parameters:
+    tag (bs4.element.Tag): The tag to get the value from
+    path (str): BeautifulSoup selection string to find the value
+    attribute (str): Name if the attribute that contains the value
+    required (bool): If not required, do not raise an exception,
+    just return an empty value
+    remove (str): Regex for anything to strip out
+
+    Returns:
+        str: The value found
+    """
     try:
         if attribute:
-            return soup.select_one(
+            value = tag.select_one(
                 path
             )[attribute]
         else:
-            return soup.select_one(path).text.strip()
-    except Exception as e:
+            value = tag.select_one(path).text.strip()
+    except AttributeError as e:
         if not required:
             return ''
         else:
-            raise e
+            raise MissingValueException(f'Failed to find "{path}".')
+
+    if remove:
+        return re.sub(remove, '', value)
+    else:
+        return value
 
 def __write_csv_line(output, values):
     """Write row to CSV output file

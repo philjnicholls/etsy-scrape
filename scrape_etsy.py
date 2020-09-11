@@ -46,7 +46,7 @@ def __get_page(url, retry_count=0):
             else:
                 raise requests.ConnectionError
 
-        client.set(url, page.content, expiry=CT.CACHE_EXPIRY)
+        client.set(url, page.content, expire=CT.CACHE_EXPIRE)
 
         return page.content
 
@@ -81,17 +81,10 @@ def __get_field_names(get_details):
     list: Field names for output CSV
     """
 
-    fields = {
-        'url': '',
-        'currency': '',
-        'cost': '',
-    }
-    if fields:
-        fields['shipping_currency'] = ''
-        fields['shipping_cost'] = ''
-        fields['title'] = ''
-
-    return fields
+    if get_details:
+        return {**PATH.SEARCH_FIELDS, **PATH.DETAIL_FIELDS}
+    else:
+        return PATH.SEARCH_FIELDS
 
 def __get_default_fields(get_details):
     """Get a default dictionary for a row in the
@@ -128,6 +121,20 @@ def __write_csv_header(output, get_details):
                             doublequote=True)
         writer.writeheader()
 
+def __get_value(soup, path, attribute=None, required=False):
+    try:
+        if attribute:
+            return soup.select_one(
+                path
+            )[attribute]
+        else:
+            return soup.select_one(path).text.strip()
+    except Exception as e:
+        if not required:
+            return ''
+        else:
+            raise e
+
 def __write_csv_line(output, values):
     """Write row to CSV output file
 
@@ -161,33 +168,26 @@ def __get_product(result, get_details):
     """
 
     csv_entry = __get_default_fields(get_details)
-    csv_entry['url'] = result.select_one(PATH.RESULT_LINK)['href']
 
     # TODO Deal with promotions properly
-    csv_entry['currency'] = result.select_one(PATH.PRICE_CURRENCY).text
-    csv_entry['cost'] = result.select_one(PATH.PRICE_VALUE).text
+    for field_name, field in PATH.SEARCH_FIELDS.items():
+        csv_entry[field_name] = __get_value(result, **field)
 
     if get_details:
         # Get the product listing page
         detail_page = __get_page(csv_entry['url'])
 
         detail = BeautifulSoup(detail_page, 'html.parser')
-        csv_entry['title'] = detail.select_one(PATH.TITLE).text.strip()
+        for field_name, field in PATH.DETAIL_FIELDS.items():
+            csv_entry[field_name] = __get_value(detail, **field)
 
-        if detail.select_one(PATH.SHIPPING_CURRENCY):
-            # If there is a shipping cost
-            csv_entry['shipping_currency'] = detail.select_one(
-                PATH.SHIPPING_CURRENCY).text
-            csv_entry['shipping_cost'] = detail.select_one(
-                PATH.SHIPPING_VALUE).text
     return csv_entry
 
-
 def scrape_etsy(url,
-                limit=None,
-                get_details=False,
                 output='output.csv',
+                get_details=False,
                 fail_log='fail.log',
+                limit=None,
                 message_callback=None,
                 progress_callback=None):
     """Navigate through the results of an Etsy search, extract
@@ -202,6 +202,8 @@ def scrape_etsy(url,
     fail_log (str): Path to the failure log
     message_callback (function): Callback function for dealing
     with messages
+    progress_callback (function): Callback function for dealing
+    with progress, called for each product
 
     Returns:
     None

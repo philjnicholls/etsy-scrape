@@ -18,7 +18,7 @@ from exceptions import MissingValueException
 
 def __get_page(url, retry_count=0):
     """Recursive function to try getting
-    page TIMEOUT times before failing, and
+    page CT.RETRY_COUNT times before failing, and
     cache using memcached
 
     Parameters:
@@ -36,7 +36,12 @@ def __get_page(url, retry_count=0):
         return cached_page
     else:
         try:
-            page = requests.get(url, timeout=CT.TIMEOUT)
+            page = requests.get(url, timeout=CT.RETRY_COUNT)
+            if page.status_code != 200:
+                if retry_count < CT.RETRY_COUNT:
+                    page = __get_page(url, retry_count=retry_count+1)
+                else:
+                    raise requests.ConnectionError
         except requests.ConnectionError as error:
             if retry_count < CT.RETRY_COUNT:
                 page = __get_page(url, retry_count=retry_count+1)
@@ -86,6 +91,7 @@ def __get_field_names(get_details):
     """
 
     if get_details:
+        # Combine basic fields and details fields
         return {**PATH.SEARCH_FIELDS, **PATH.DETAIL_FIELDS}
     else:
         return PATH.SEARCH_FIELDS
@@ -125,12 +131,12 @@ def __write_csv_header(output, get_details):
                             doublequote=True)
         writer.writeheader()
 
-def __get_value(tag, path, attribute=None, required=True, remove=None):
+def __get_value(tag, selector, attribute=None, required=True, remove=None):
     """Retrieve a value from a BeautifulSoup
 
     Parameters:
     tag (bs4.element.Tag): The tag to get the value from
-    path (str): BeautifulSoup selection string to find the value
+    selector (str): BeautifulSoup selection string to find the value
     attribute (str): Name if the attribute that contains the value
     required (bool): If not required, do not raise an exception,
     just return an empty value
@@ -142,15 +148,15 @@ def __get_value(tag, path, attribute=None, required=True, remove=None):
     try:
         if attribute:
             value = tag.select_one(
-                path
+                selector
             )[attribute]
         else:
-            value = tag.select_one(path).text.strip()
+            value = tag.select_one(selector).text.strip()
     except AttributeError as e:
         if not required:
             return ''
         else:
-            raise MissingValueException(f'Failed to find "{path}".')
+            raise MissingValueException(f'Failed to find "{selector}".')
 
     if remove:
         return re.sub(remove, '', value)

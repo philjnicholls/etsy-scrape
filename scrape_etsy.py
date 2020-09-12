@@ -1,3 +1,5 @@
+# TODO Raise errors if no log or callback, otherwise don't raise
+# TODO Store search position
 # TODO Callback for failures
 # TODO Option to autoprocess failures
 # TODO Create a test mode which requires no internet/caching
@@ -11,10 +13,16 @@ import csv
 import requests
 from bs4 import BeautifulSoup
 from pymemcache.client import base
+from datetime import datetime
 
 import constants as CT
 import paths as PATH
-from exceptions import MissingValueException
+from exceptions import (MissingValueException,
+                        GetPageException,
+                        ProductScrapeException)
+
+__memcached__ = None
+__fail_log__ = None
 
 def __get_page(url, retry_count=0):
     """Recursive function to try getting
@@ -29,10 +37,14 @@ def __get_page(url, retry_count=0):
     Returns:
     str: Content of the page
     """
+    global __memcached__
 
-    client = base.Client(('localhost', 11211))
-    cached_page = client.get(url)
-    if cached_page:
+    if __memcached__:
+        memcached = tuple(__memcached__.split(':'))
+        client = base.Client((memcached[0], int(memcached[1])))
+        cached_page = client.get(url)
+
+    if __memcached__ and cached_page:
         return cached_page
     else:
         try:
@@ -41,25 +53,22 @@ def __get_page(url, retry_count=0):
                 if retry_count < CT.RETRY_COUNT:
                     page = __get_page(url, retry_count=retry_count+1)
                 else:
-                    raise requests.ConnectionError
-        except requests.ConnectionError as error:
+                    __log_error(url, requests.ConnectionError,
+                                GetPageException())
+        except (requests.ConnectionError, requests.Timeout) as error:
             if retry_count < CT.RETRY_COUNT:
                 page = __get_page(url, retry_count=retry_count+1)
             else:
-                raise requests.ConnectionError
-        except requests.Timeout as error:
-            if retry_count < 5:
-                page = __get_page(url, retry_count=retry_count+1)
-            else:
-                raise requests.ConnectionError
+                __log_error(url, requests.ConnectionError, GetPageException())
 
         #TODO Handle returning of a byte array from requests.get
 
-        client.set(url, page.content, expire=CT.CACHE_EXPIRE)
+        if __memcached__ and client:
+            client.set(url, page.content, expire=CT.CACHE_EXPIRE)
 
         return page.content
 
-def __log_error(url, error, fail_log):
+def __log_error(url, error, raise_error=None):
     """Log errors to a CSV file
 
     Parameters:
@@ -70,12 +79,20 @@ def __log_error(url, error, fail_log):
     None
     """
 
+    global __fail_log__
+
     err_string = str(error) if len(str(error)) > 0 else type(error).__name__
 
-    if fail_log:
-        with open(fail_log, 'a') as f:
-            f.write(','.join([url, err_string]))
+    if __fail_log__:
+        with open(__fail_log__, 'a') as f:
+            # TODO Add a time/date stamp
+            f.write(','.join([str(datetime.now()), url, err_string]))
             f.write('\n')
+
+    if raise_error:
+        raise raise_error
+    else:
+        raise error
 
 def __get_field_names(get_details):
     """Get an list of field name for the output
@@ -111,11 +128,10 @@ def __get_default_fields(get_details):
     fields = __get_field_names(get_details)
     return dict((field, None) for field in fields)
 
-def __write_csv_header(output, get_details):
+def __write_csv_header(get_details):
     """Write header row to CSV output file
 
     Parameters:
-    output (str): Path to the output CSV file
     get_details (bool): True if full details for products
     are requested
 
@@ -123,8 +139,10 @@ def __write_csv_header(output, get_details):
     None
     """
 
+    global __output__
+
     fields = __get_field_names(get_details)
-    with open(output, 'w', newline='') as csvfile:
+    with open(__output__, 'w', newline='') as csvfile:
         writer = csv.DictWriter(csvfile,
                                 fieldnames=fields, delimiter=',', quotechar='"',
                             quoting=csv.QUOTE_MINIMAL,
@@ -156,18 +174,18 @@ def __get_value(tag, selector, attribute=None, required=True, remove=None):
         if not required:
             return ''
         else:
-            raise MissingValueException(f'Failed to find "{selector}".')
+            __log_error(tag.url, MissingValueException(f'Failed to find'
+                                                       f'"{selector}".'))
 
     if remove:
         return re.sub(remove, '', value)
     else:
         return value
 
-def __write_csv_line(output, values):
+def __write_csv_line(values):
     """Write row to CSV output file
 
     Parameters:
-    output (str): Path to the output CSV file
     values (list): List of valus to write to the CSV
     output file
 
@@ -175,19 +193,21 @@ def __write_csv_line(output, values):
     None
     """
 
-    with open(output, 'a', newline='') as csvfile:
+    global __output__
+
+    with open(__output__, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quotechar='"',
                             quoting=csv.QUOTE_MINIMAL,
                             doublequote=True)
         writer.writerow(values)
 
-def __get_product(result, get_details):
+def __get_product(tag, get_details):
     """Extract the basic details of a product from a search result
     and if requested, retrieve detail product page and extract
     further details.
 
     Parameters:
-    output (str): Path to the output CSV file
+    tag (bs4.element.Tag): The tag to get the product from
     get_details (bool): True if full details for products
     are requested
 
@@ -199,11 +219,14 @@ def __get_product(result, get_details):
 
     # TODO Deal with promotions properly
     for field_name, field in PATH.SEARCH_FIELDS.items():
-        csv_entry[field_name] = __get_value(result, **field)
+        csv_entry[field_name] = __get_value(tag, **field)
 
     if get_details:
         # Get the product listing page
-        detail_page = __get_page(csv_entry['url'])
+        try:
+            detail_page = __get_page(csv_entry['url'])
+        except GetPageException as e:
+            raise ProductScrapeException()
 
         detail = BeautifulSoup(detail_page, 'html.parser')
         for field_name, field in PATH.DETAIL_FIELDS.items():
@@ -214,10 +237,12 @@ def __get_product(result, get_details):
 def scrape_etsy(url,
                 output='output.csv',
                 get_details=False,
-                fail_log='fail.log',
+                fail_log=None,
                 limit=None,
                 message_callback=None,
-                progress_callback=None):
+                progress_callback=None,
+                memcached=None
+               ):
     """Navigate through the results of an Etsy search, extract
     product details to a CSV file and log failures
 
@@ -232,16 +257,30 @@ def scrape_etsy(url,
     with messages
     progress_callback (function): Callback function for dealing
     with progress, called for each product
+    memcached (str): server:port of memcached server to use for
+    caching
 
     Returns:
     None
     """
 
+    # Store settings in global variables for use elsewhere
+    if memcached:
+        global __memcached__
+        __memcached__ = memcached
+
+    global __output__
+    __output__ = output
+
+    global __fail_log__
+    __fail_log__ = fail_log
+
+
     product_count = 1
     success_count = 0
     fail_count = 0
 
-    __write_csv_header(output, get_details)
+    __write_csv_header(get_details)
 
     while not limit or (limit and product_count <= limit):
         if message_callback:
@@ -249,9 +288,8 @@ def scrape_etsy(url,
 
         try:
             page = __get_page(url)
-        except requests.exceptions.RequestException as e:
+        except GetPageException as e:
             fail_count += 1
-            __log_error(url, e, fail_log)
             break
 
         search_results = BeautifulSoup(page, 'html.parser')
@@ -266,13 +304,11 @@ def scrape_etsy(url,
 
                 try:
                     csv_entry = __get_product(result, get_details)
-                except (requests.exceptions.ConnectionError,
-                        requests.exceptions.MissingSchema) as e:
+                except (ProductScrapeException) as e:
                     fail_count += 1
-                    __log_error(result.select_one(PATH.RESULT_LINK), e, fail_log)
                     next
 
-                __write_csv_line(output, csv_entry.values())
+                __write_csv_line(csv_entry.values())
 
                 success_count += 1
                 product_count += 1

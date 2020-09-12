@@ -6,6 +6,7 @@ click==7.1.2
 coverage==5.2.1
 idna==2.10
 iniconfig==1.0.1
+mock==4.0.2
 more-itertools==8.5.0
 packaging==20.4
 pluggy==0.13.1
@@ -16,6 +17,7 @@ pymemcache==3.3.0
 pyparsing==2.4.7
 pytest==6.0.1
 pytest-cov==2.10.1
+pytest-pudb==0.7.0
 requests==2.24.0
 six==1.15.0
 soupsieve==2.0.1

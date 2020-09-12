@@ -26,6 +26,8 @@ def parse_args():
                         'products.', type=int)
     parser.add_argument('-d', '--get-details', help='Get full details for a'
                         ' listing.', action='store_true')
+    parser.add_argument('-m', '--memcached', help='server:port of memcached '
+                        'server to use for caching', type=str)
     args = parser.parse_args()
 
     return vars(args)

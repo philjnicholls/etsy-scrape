@@ -1,13 +1,9 @@
-# TODO Raise errors if no log or callback, otherwise don't raise
-# TODO Store search position
-# TODO Callback for failures
+# TODO Pipe to stdout if no file given
 # TODO Option to autoprocess failures
 # TODO Create a test mode which requires no internet/caching
-# TODO Tests
 # TODO Check for memcached and cope if not installed
-# TODO Add commmand line and library options for caching
-# TODO Create module levels variables for settings
 
+import sys
 import re
 import csv
 import requests
@@ -22,7 +18,7 @@ from exceptions import (MissingValueException,
                         ProductScrapeException)
 
 __memcached__ = None
-__fail_log__ = None
+__fail_log_callback__ = None
 
 def __get_page(url, retry_count=0):
     """Recursive function to try getting
@@ -61,7 +57,8 @@ def __get_page(url, retry_count=0):
             else:
                 __log_error(url, requests.ConnectionError, GetPageException())
 
-        #TODO Handle returning of a byte array from requests.get
+        if type(page) == bytes:
+            __log_error(url, requests.ConnectionError, GetPageException())
 
         if __memcached__ and client:
             client.set(url, page.content, expire=CT.CACHE_EXPIRE)
@@ -80,7 +77,9 @@ def __log_error(url, error, raise_error=None):
     """
 
     global __fail_log__
+    global __fail_log_callback__
 
+    # Turn the error into a nice string
     err_string = str(error) if len(str(error)) > 0 else type(error).__name__
 
     if __fail_log__:
@@ -88,6 +87,9 @@ def __log_error(url, error, raise_error=None):
             # TODO Add a time/date stamp
             f.write(','.join([str(datetime.now()), url, err_string]))
             f.write('\n')
+
+    if __fail_log_callback__:
+        __fail_log_callback__(url, err_string)
 
     if raise_error:
         raise raise_error
@@ -142,12 +144,19 @@ def __write_csv_header(get_details):
     global __output__
 
     fields = __get_field_names(get_details)
-    with open(__output__, 'w', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile,
-                                fieldnames=fields, delimiter=',', quotechar='"',
-                            quoting=csv.QUOTE_MINIMAL,
-                            doublequote=True)
-        writer.writeheader()
+    if __output__:
+        csvfile = open(__output__, 'w', newline='')
+    else:
+        csvfile = sys.stdout
+
+    writer = csv.DictWriter(csvfile,
+                            fieldnames=fields, delimiter=',', quotechar='"',
+                        quoting=csv.QUOTE_MINIMAL,
+                        doublequote=True)
+    writer.writeheader()
+
+    if __output__:
+        csvfile.close()
 
 def __get_value(tag, selector, attribute=None, required=True, remove=None):
     """Retrieve a value from a BeautifulSoup
@@ -195,11 +204,18 @@ def __write_csv_line(values):
 
     global __output__
 
-    with open(__output__, 'a', newline='') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',', quotechar='"',
-                            quoting=csv.QUOTE_MINIMAL,
-                            doublequote=True)
-        writer.writerow(values)
+    if __output__:
+        csvfile = open(__output__, 'a', newline='')
+    else:
+        csvfile = sys.stdout
+
+    writer = csv.writer(csvfile, delimiter=',', quotechar='"',
+                        quoting=csv.QUOTE_MINIMAL,
+                        doublequote=True)
+    writer.writerow(values)
+
+    if __output__:
+        csvfile.close()
 
 def __get_product(tag, get_details):
     """Extract the basic details of a product from a search result
@@ -219,7 +235,8 @@ def __get_product(tag, get_details):
 
     # TODO Deal with promotions properly
     for field_name, field in PATH.SEARCH_FIELDS.items():
-        csv_entry[field_name] = __get_value(tag, **field)
+        if 'selector' in field:
+            csv_entry[field_name] = __get_value(tag, **field)
 
     if get_details:
         # Get the product listing page
@@ -230,17 +247,19 @@ def __get_product(tag, get_details):
 
         detail = BeautifulSoup(detail_page, 'html.parser')
         for field_name, field in PATH.DETAIL_FIELDS.items():
-            csv_entry[field_name] = __get_value(detail, **field)
+            if 'selector' in field:
+                csv_entry[field_name] = __get_value(detail, **field)
 
     return csv_entry
 
 def scrape_etsy(url,
-                output='output.csv',
+                output=None,
                 get_details=False,
                 fail_log=None,
                 limit=None,
                 message_callback=None,
                 progress_callback=None,
+                fail_log_callback=None,
                 memcached=None
                ):
     """Navigate through the results of an Etsy search, extract
@@ -257,6 +276,8 @@ def scrape_etsy(url,
     with messages
     progress_callback (function): Callback function for dealing
     with progress, called for each product
+    fail_log_callback (function): Callback function for dealing
+    with failures
     memcached (str): server:port of memcached server to use for
     caching
 
@@ -275,10 +296,16 @@ def scrape_etsy(url,
     global __fail_log__
     __fail_log__ = fail_log
 
+    global __fail_log_callback__
+    __fail_log_callback__ = fail_log_callback
+
 
     product_count = 1
     success_count = 0
     fail_count = 0
+
+    # Position in the search results
+    search_rank = 0
 
     __write_csv_header(get_details)
 
@@ -299,6 +326,7 @@ def scrape_etsy(url,
             if result.select_one(PATH.RESULT_LINK) and (not limit or
                                                         product_count <=
                                                         limit):
+                search_rank += 1
                 if progress_callback:
                     progress_callback(result.select_one(PATH.RESULT_LINK))
 
@@ -308,12 +336,14 @@ def scrape_etsy(url,
                     fail_count += 1
                     next
 
+                csv_entry['search_rank'] = search_rank
                 __write_csv_line(csv_entry.values())
 
                 success_count += 1
                 product_count += 1
 
         try:
+            # Get the last page button, should be next page
             url = search_results.select(PATH.SEARCH_PAGE_BUTTON)[-1]['href']
         except KeyError:
             break

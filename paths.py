@@ -12,7 +12,8 @@ SEARCH_FIELDS = {
     'review_count': {'selector': ('a.listing-link span.v2-listing-card__rating '
                                    '> span.screen-reader-only'),
                       'required': False, 'remove': r',|\ reviews'},
-    'url': {'selector': 'a.listing-link', 'attribute': 'href'}
+    'url': {'selector': 'a.listing-link', 'attribute': 'href'},
+    'search_rank': {},
 }
 
 DETAIL_FIELDS = {

@@ -160,6 +160,20 @@ def test_message_callback():
 
     message.assert_called_with('Scraped 10 products, failed to scrape 0.')
 
+def test_fail_log_callback():
+    fp = tempfile.NamedTemporaryFile()
+    fail_log = fp.name
+    fp.close()
+
+    fail_log = mock.Mock()
+    scrape_etsy.scrape_etsy('https://www.ddddetsy.com/search?q=test',
+                            'will_not_write',
+                            limit=10,
+                            fail_log_callback=fail_log)
+
+    fail_log.assert_called_with('https://www.ddddetsy.com/search?q=test',
+                                '<class \'requests.exceptions.ConnectionError\'>')
+
 def test_fail_log():
     fp = tempfile.NamedTemporaryFile()
     output = fp.name
@@ -170,8 +184,11 @@ def test_fail_log():
     fp.close()
 
     scrape_etsy.scrape_etsy('https://www.notactuallyetsy.com/search?q=test', output,
-               limit=10, fail_log=fail_log)
+                            limit=10, fail_log=fail_log)
     line_count = len(open(fail_log).readlines())
 
     assert line_count > 0
 
+def test_write_to_std_out():
+    # TODO Need to capture and test stdout
+    scrape_etsy.scrape_etsy('https://www.etsy.com/search?q=test', limit=10)

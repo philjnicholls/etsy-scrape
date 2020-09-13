@@ -1,6 +1,5 @@
 # TODO Option to autoprocess failures
 # TODO Create a test mode which requires no internet/caching
-# TODO Check for memcached and cope if not installed
 
 import sys
 import re
@@ -171,6 +170,8 @@ def __get_value(tag, selector, attribute=None, required=True, remove=None):
         str: The value found
     """
 
+    """If selector is a list loop through that list
+    looking for a match and leave the loop when found"""
     if type(selector) == list:
         for s in selector:
             try:
@@ -190,6 +191,7 @@ def __get_value(tag, selector, attribute=None, required=True, remove=None):
         except AttributeError as e:
             pass
 
+    # Log an error if no value was found and field is required
     if 'value' not in locals():
         if not required:
             return ''
@@ -244,7 +246,6 @@ def __get_product(tag, get_details):
 
     csv_entry = __get_default_fields(get_details)
 
-    # TODO Deal with promotions properly
     for field_name, field in PATH.SEARCH_FIELDS.items():
         if 'selector' in field:
             csv_entry[field_name] = __get_value(tag, **field)

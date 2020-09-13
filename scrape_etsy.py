@@ -1,4 +1,3 @@
-# TODO Find out why some search result pages are blank (probably ajax)
 # TODO Option to autoprocess failures
 # TODO Create a test mode which requires no internet/caching
 

@@ -1,3 +1,4 @@
+# TODO Find out why some search result pages are blank (probably ajax)
 # TODO Option to autoprocess failures
 # TODO Create a test mode which requires no internet/caching
 
@@ -56,12 +57,14 @@ def __get_page(url, retry_count=0):
                 __log_error(url, requests.ConnectionError, GetPageException())
 
         if type(page) == bytes:
-            __log_error(url, requests.ConnectionError, GetPageException())
+            html= str(page, 'utf-8')
+        else:
+            html = page.content
 
         if __memcached__ and client:
-            client.set(url, page.content, expire=CT.CACHE_EXPIRE)
+            client.set(url, html, expire=CT.CACHE_EXPIRE)
 
-        return page.content
+        return html
 
 def __log_error(url, error, raise_error=None):
     """Log errors to a CSV file

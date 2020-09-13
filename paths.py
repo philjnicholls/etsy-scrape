@@ -4,8 +4,20 @@ RESULT_LINK = 'a.listing-link'
 
 SEARCH_FIELDS = {
     'title': {'selector': 'a.listing-link h3'},
-    'price_currency': {'selector': 'span.currency-symbol'},
-    'price_value': {'selector': 'span.currency-value'},
+    'price_currency': {'selector': [
+        'span.promotion-price span.currency-symbol',
+        'span.n-listing-card__price > '
+                      'span.currency-symbol',
+    ], 'required': True},
+    'price_value': {'selector': [
+        'span.promotion-price span.currency-value',
+        'span.n-listing-card__price > '
+                      'span.currency-value',
+    ], 'required': True},
+    'sale_currency': {'selector': 'span.n-listing-card__price > span > '
+                      'span.currency-symbol', 'required': False},
+    'sale_value': {'selector': 'span.n-listing-card__price > span '
+                   '> span.currency-value', 'required': False},
     'review_rating': {'selector': ('a.listing-link span.v2-listing-card__rating '
                                    '> span > span.screen-reader-only'),
                       'required': False, 'remove': r'\ out of 5 stars'},

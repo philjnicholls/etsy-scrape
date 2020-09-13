@@ -1,4 +1,3 @@
-# TODO Pipe to stdout if no file given
 # TODO Option to autoprocess failures
 # TODO Create a test mode which requires no internet/caching
 # TODO Check for memcached and cope if not installed
@@ -84,7 +83,6 @@ def __log_error(url, error, raise_error=None):
 
     if __fail_log__:
         with open(__fail_log__, 'a') as f:
-            # TODO Add a time/date stamp
             f.write(','.join([str(datetime.now()), url, err_string]))
             f.write('\n')
 
@@ -172,24 +170,37 @@ def __get_value(tag, selector, attribute=None, required=True, remove=None):
     Returns:
         str: The value found
     """
-    try:
-        if attribute:
-            value = tag.select_one(
-                selector
-            )[attribute]
-        else:
-            value = tag.select_one(selector).text.strip()
-    except AttributeError as e:
+
+    if type(selector) == list:
+        for s in selector:
+            try:
+                value = tag.select_one(s).text.strip()
+            except AttributeError:
+                next
+            else:
+                break
+    else:
+        try:
+            if attribute:
+                value = tag.select_one(
+                    selector
+                )[attribute]
+            else:
+                value = tag.select_one(selector).text.strip()
+        except AttributeError as e:
+            pass
+
+    if 'value' not in locals():
         if not required:
             return ''
         else:
             __log_error(tag.url, MissingValueException(f'Failed to find'
                                                        f'"{selector}".'))
-
-    if remove:
-        return re.sub(remove, '', value)
     else:
-        return value
+        if remove:
+            return re.sub(remove, '', value)
+        else:
+            return value
 
 def __write_csv_line(values):
     """Write row to CSV output file

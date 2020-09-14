@@ -2,7 +2,7 @@ import os
 import argparse
 import click
 
-import scrape_etsy
+from scrape_etsy.scrape_etsy import scrape
 
 def parse_args():
     """Extract arguments from the command line and return in dictionatry
@@ -66,4 +66,4 @@ if __name__ == '__main__':
 
     if check_existing_files(args['output'], args['fail_log']):
         # Only pass argument that are not null
-        scrape_etsy.scrape_etsy(**dict(filter(lambda a: a[1], args.items())))
+        scrape(**dict(filter(lambda a: a[1], args.items())))

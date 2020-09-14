@@ -36,3 +36,6 @@ optional arguments:
 To extract the details of the first 100 face masks found on Etsy:
 
 ```main.py 'https://www.etsy.com/search?q=face+mask' 'face_masks.csv' -d -l 100```
+
+## Out Of Scope
+* Reviews - Data not currently of use for the analysis I am performing and will require too much work for now.

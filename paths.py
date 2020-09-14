@@ -89,8 +89,4 @@ DETAIL_FIELDS = {
                    'tests': [
                        lambda value: __is_type(value, int) if len(value) > 0 else True,
                    ]},
-    'dispatch_from': {'selector': ('div[data-estimated-shipping-form] '
-                               'div.wt-text-caption'), 'required': False,
-                      'tests': [
-                      ]},
 }

@@ -1,129 +1,123 @@
-# TODO Tests in writing will_not_write, I'd rather it did not
 # TODO Split unit and functional tests
+# TODO Re-think how URLs are created,  stored and used, maybe add a nocache to
+# querystring
 
 import pytest
 import mock
 import tempfile
 import csv
+import random
+import os
+import urllib.parse
 
 import scrape_etsy
 import standard_tests
+import paths
 
 from bs4 import BeautifulSoup
 
 from standard_tests import test_pep8
 
-def __is_type(value, type):
-    try:
-        type(value)
-        return True
-    except ValueError as e:
-        return False
-
-def __test_fields(csv_path, fields):
+def _test_fields(csv_path, fields):
     with open(csv_path, 'r') as fp:
         csv_reader = csv.DictReader(fp)
         for row in csv_reader:
             for field_name, field in fields.items():
-                for test in field['tests']:
+                for idx, test in enumerate(field['tests']):
                     if not test(row[field_name]):
                         assert False, (f'Failed on field {field_name} for test '
-                                       f'"{test}"')
+                                       f'#{idx}')
 
     assert True
 
-SEARCH_FIELDS = {
-    'title': {'tests': [
-        lambda value: len(value) > 0,
-    ]},
-    'price_currency': {'tests': [
-        lambda value: len(value) > 0,
-    ]},
-    'price_value': {'tests': [
-        lambda value: len(value) > 0,
-        lambda value: __is_type(value, float),
-    ]},
-    'review_rating': {'tests': [
-        lambda value: __is_type(value, float) if len(value) > 0 else True,
-    ]},
-    'review_count': {'tests': [
-        lambda value: __is_type(value, int) if len(value) > 0 else True,
-    ]},
-    'url': {'tests': [
-        lambda value: len(value) > 0,
-    ]},
-}
+@pytest.fixture
+def search_url():
+    return get_search_url()
 
-DETAIL_FIELDS = {
-    'shipping_currency': {'tests': [
-    ]},
-    'shipping_value': {'tests': [
-        lambda value: __is_type(value, float) if len(value) > 0 else True,
-    ]},
-    'description': {'tests': [
-        lambda value: len(value) > 0,
-    ]},
-    'processing_time': {'tests': [
-    ]},
-    'materials': {'tests': [
-    ]},
-    'estimated_delivery': {'tests': [
-    ]},
-    'shop_sales': {'tests': [
-        lambda value: __is_type(value, int) if len(value) > 0 else True,
-    ]},
-    'dispatch_from': {'tests': [
-    ]},
-}
+def get_search_url():
+    products = ('shirt', 'clock', 'doll')
+    colors = ('blue', 'green', 'red')
 
-def test_basic_results(request):
-    fp = tempfile.NamedTemporaryFile()
-    output = fp.name
-    fp.close()
-    request.config.cache.set('search_output', output)
-    scrape_etsy.scrape_etsy('https://www.etsy.com/search?q=test', output,
-               limit=10)
-    line_count = len(open(output).readlines())
+    product = products[random.randrange(len(products))]
+    color = colors[random.randrange(len(colors))]
 
-    assert line_count == 11
+    query_string = urllib.parse.quote(f'{color} {product}')
+    return f'https://www.etsy.com/il-en/search?q={query_string}'
 
-def test_basic_fields(request):
-    output = request.config.cache.get('search_output', None)
+class TestBasicResults():
+    def setup(self):
+        fp = tempfile.NamedTemporaryFile()
+        self.output = fp.name
+        fp.close()
+        scrape_etsy.scrape_etsy(get_search_url(), self.output,
+                                limit=10)
 
-    __test_fields(output, SEARCH_FIELDS)
+    def teardown(self):
+        os.remove(self.output)
 
-def test_detail_results(request):
-    fp = tempfile.NamedTemporaryFile()
-    output = fp.name
-    fp.close()
-    request.config.cache.set('page_output', output)
-    scrape_etsy.scrape_etsy('https://www.etsy.com/search?q=test', output,
-               limit=10, get_details=True)
-    line_count = len(open(output).readlines())
-
-    assert line_count == 11
-
-def test_detail_fields(request):
-    output = request.config.cache.get('page_output', None)
-
-    __test_fields(output, DETAIL_FIELDS)
-
-def test_cached_detail_results(request):
-    fp = tempfile.NamedTemporaryFile()
-    output = fp.name
-    fp.close()
-
-    for i in range(2):
-        scrape_etsy.scrape_etsy('https://www.etsy.com/search?q=bunny+earings', output,
-                                limit=10, get_details=True, memcached='localhost:11211')
-        line_count = len(open(output).readlines())
+    def test_basic_results(self):
+        line_count = len(open(self.output).readlines())
 
         assert line_count == 11
 
-        __test_fields(output, DETAIL_FIELDS)
+    def test_basic_fields(self):
+        _test_fields(self.output, paths.SEARCH_FIELDS)
 
-def test_bad_selector():
-    page = scrape_etsy.__get_page('https://www.etsy.com/search?q=test')
+    def test_message_callback(self, search_url):
+        message = mock.Mock()
+        scrape_etsy.scrape_etsy(search_url,
+                                limit=10,
+                                message_callback=message)
+
+        message.assert_called_with('Scraped 10 products, failed to scrape 0.')
+
+    def test_progress_callback(self, search_url):
+        progress = mock.Mock()
+        scrape_etsy.scrape_etsy(search_url,
+                                limit=10,
+                                progress_callback=progress)
+
+        progress.assert_called()
+
+
+class TestDetailedResults():
+    def setup(self):
+        self.search_url = get_search_url()
+        fp = tempfile.NamedTemporaryFile()
+        self.output = fp.name
+        fp.close()
+        scrape_etsy.scrape_etsy(self.search_url, self.output,
+                                limit=10, get_details=True,
+                                memcached='localhost:11211')
+
+    def teardown(self):
+        os.remove(self.output)
+
+    def test_detail_results(self):
+        line_count = len(open(self.output).readlines())
+
+        assert line_count == 11
+
+    def test_detail_fields(self):
+        _test_fields(self.output, paths.DETAIL_FIELDS)
+
+    def test_cached_detail_results(self):
+        scrape_etsy.scrape_etsy(self.search_url, self.output,
+                                limit=10, get_details=True,
+                                memcached='localhost:11211')
+        line_count = len(open(self.output).readlines())
+
+        assert line_count == 11
+
+    def test_cached_detail_fields(self):
+        scrape_etsy.scrape_etsy(self.search_url, self.output,
+                                limit=10, get_details=True,
+                                memcached='localhost:11211')
+        _test_fields(self.output, paths.DETAIL_FIELDS)
+
+
+def test_bad_selector(search_url):
+    page = scrape_etsy.__get_page(search_url)
     search_results = BeautifulSoup(page, 'html.parser')
 
     try:
@@ -150,31 +144,6 @@ def test_bad_domain():
     else:
         assert False
 
-def test_message_callback():
-    fp = tempfile.NamedTemporaryFile()
-    output = fp.name
-    fp.close()
-
-    message = mock.Mock()
-    scrape_etsy.scrape_etsy('https://www.etsy.com/search?q=test',
-                            output,
-                            limit=10,
-                            message_callback=message)
-
-    message.assert_called_with('Scraped 10 products, failed to scrape 0.')
-
-def test_progress_callback():
-    fp = tempfile.NamedTemporaryFile()
-    output = fp.name
-    fp.close()
-
-    progress = mock.Mock()
-    scrape_etsy.scrape_etsy('https://www.etsy.com/search?q=test',
-                            output,
-                            limit=10,
-                            progress_callback=progress)
-
-    progress.assert_called()
 
 def test_fail_log_callback():
     fp = tempfile.NamedTemporaryFile()
@@ -183,7 +152,6 @@ def test_fail_log_callback():
 
     fail_log = mock.Mock()
     scrape_etsy.scrape_etsy('https://www.ddddetsy.com/search?q=test',
-                            'will_not_write',
                             limit=10,
                             fail_log_callback=fail_log)
 
@@ -204,15 +172,16 @@ def test_fail_log():
 
     assert line_count > 0
 
-def test_write_to_std_out():
+def test_write_to_std_out(search_url):
     # TODO Need to capture and test stdout
-    scrape_etsy.scrape_etsy('https://www.etsy.com/search?q=test', limit=10)
+    scrape_etsy.scrape_etsy(search_url, limit=10)
 
-def test_bad_product_url():
-    page = scrape_etsy.__get_page('https://www.etsy.com/search?q=test')
+def test_bad_product_url(search_url):
+    pu.db
+    page = scrape_etsy.__get_page(search_url)
     search_results = BeautifulSoup(page, 'html.parser')
-    results = search_results.select('div[data-search-results] > div > '
-                                   'ul > li.wt-list-unstyled')
+    results = search_results.select('div[data-search-results] '
+                                    'li.wt-list-unstyled')
     result = results[0]
     result.select_one('a.listing-link')['href'] = 'http://dsfkhdsf.dsfsdfs'
 
@@ -227,7 +196,7 @@ def test_get_all_results():
     fp = tempfile.NamedTemporaryFile()
     output = fp.name
     fp.close()
-    scrape_etsy.scrape_etsy('https://www.etsy.com/il-en/search?q=falcor',
+    scrape_etsy.scrape_etsy('https://www.etsy.com/il-en/search?q=bunny%20wizard%20hat',
                             output)
     line_count = len(open(output).readlines())
 

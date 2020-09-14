@@ -175,7 +175,8 @@ def __write_csv_header(get_details):
         csvfile.close()
 
 
-def __get_value(tag, selector, attribute=None, required=True, remove=None):
+def __get_value(tag, selector, attribute=None, required=True, remove=None,
+                **kwargs):
     """Retrieve a value from a BeautifulSoup
 
     Parameters:
@@ -354,9 +355,6 @@ def scrape_etsy(url,
 
         search_results = BeautifulSoup(page, 'html.parser')
         results = search_results.select(PATH.SEARCH_RESULT)
-
-        if len(results) == 0:
-            __log_error(url, NoResultsException(url), NoResultsException(url))
 
         for result in results:
             if result.select_one(PATH.RESULT_LINK) and (not limit or

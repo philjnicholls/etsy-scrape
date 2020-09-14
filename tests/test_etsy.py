@@ -1,4 +1,4 @@
-# TODO Add PEP tests
+# TODO Tests in writing will_not_write, I'd rather it did not
 # TODO Split unit and functional tests
 
 import pytest
@@ -7,8 +7,11 @@ import tempfile
 import csv
 
 import scrape_etsy
+import standard_tests
 
 from bs4 import BeautifulSoup
+
+from standard_tests import test_pep8
 
 def __is_type(value, type):
     try:
@@ -111,7 +114,7 @@ def test_cached_detail_results(request):
     fp.close()
 
     for i in range(2):
-        scrape_etsy.scrape_etsy('https://www.etsy.com/search?q=test', output,
+        scrape_etsy.scrape_etsy('https://www.etsy.com/search?q=bunny+earings', output,
                                 limit=10, get_details=True, memcached='localhost:11211')
         line_count = len(open(output).readlines())
 
@@ -160,6 +163,19 @@ def test_message_callback():
 
     message.assert_called_with('Scraped 10 products, failed to scrape 0.')
 
+def test_progress_callback():
+    fp = tempfile.NamedTemporaryFile()
+    output = fp.name
+    fp.close()
+
+    progress = mock.Mock()
+    scrape_etsy.scrape_etsy('https://www.etsy.com/search?q=test',
+                            output,
+                            limit=10,
+                            progress_callback=progress)
+
+    progress.assert_called()
+
 def test_fail_log_callback():
     fp = tempfile.NamedTemporaryFile()
     fail_log = fp.name
@@ -172,14 +188,13 @@ def test_fail_log_callback():
                             fail_log_callback=fail_log)
 
     fail_log.assert_called_with('https://www.ddddetsy.com/search?q=test',
-                                '<class \'requests.exceptions.ConnectionError\'>')
+                                mock.ANY)
 
 def test_fail_log():
     fp = tempfile.NamedTemporaryFile()
     output = fp.name
     fp.close()
 
-    fp = tempfile.NamedTemporaryFile()
     fail_log = fp.name
     fp.close()
 
@@ -192,3 +207,29 @@ def test_fail_log():
 def test_write_to_std_out():
     # TODO Need to capture and test stdout
     scrape_etsy.scrape_etsy('https://www.etsy.com/search?q=test', limit=10)
+
+def test_bad_product_url():
+    page = scrape_etsy.__get_page('https://www.etsy.com/search?q=test')
+    search_results = BeautifulSoup(page, 'html.parser')
+    results = search_results.select('div[data-search-results] > div > '
+                                   'ul > li.wt-list-unstyled')
+    result = results[0]
+    result.select_one('a.listing-link')['href'] = 'http://dsfkhdsf.dsfsdfs'
+
+    try:
+        scrape_etsy.__get_product(result, get_details=True)
+    except scrape_etsy.ProductScrapeException as e:
+        assert True
+    else:
+        assert False
+
+def test_get_all_results():
+    fp = tempfile.NamedTemporaryFile()
+    output = fp.name
+    fp.close()
+    scrape_etsy.scrape_etsy('https://www.etsy.com/il-en/search?q=falcor',
+                            output)
+    line_count = len(open(output).readlines())
+
+    assert line_count > 1
+

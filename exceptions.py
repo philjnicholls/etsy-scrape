@@ -6,3 +6,7 @@ class ProductScrapeException(Exception):
 
 class GetPageException(Exception):
     pass
+
+class NoResultsException(Exception):
+    pass
+

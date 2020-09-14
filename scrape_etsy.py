@@ -1,6 +1,3 @@
-# TODO Option to autoprocess failures
-# TODO Create a test mode which requires no internet/caching
-
 import sys
 import re
 import csv
@@ -8,25 +5,40 @@ import requests
 from bs4 import BeautifulSoup
 from pymemcache.client import base
 from datetime import datetime
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
 import constants as CT
 import paths as PATH
 from exceptions import (MissingValueException,
                         GetPageException,
-                        ProductScrapeException)
+                        ProductScrapeException,
+                        NoResultsException)
 
 __memcached__ = None
 __fail_log_callback__ = None
+__fail_log__ = None
+__output__ = None
 
-def __get_page(url, retry_count=0):
-    """Recursive function to try getting
-    page CT.RETRY_COUNT times before failing, and
-    cache using memcached
+'''
+__author__ = "Phil Nicholls"
+__copyright__ = "Copyright 2020"
+__credits__ = ["Phil Nicholls"]
+__license__ = ""
+__version__ = "0.0.1"
+__maintainer__ = "Phil Nicholls"
+__email__ = "phil.j.nicholls@gmail.com"
+__status__ = "Development"
+__tests__ = ["pep8", "todo"]
+'''
+
+
+def __get_page(url):
+    """Try getting page CT.RETRY_COUNT times before
+    failing, and cache using memcached
 
     Parameters:
     url (str): URL to get
-    retry_count (int): Count of retries to track
-    during recursion
 
     Returns:
     str: Content of the page
@@ -41,29 +53,31 @@ def __get_page(url, retry_count=0):
     if __memcached__ and cached_page:
         return cached_page
     else:
-        try:
-            page = requests.get(url, timeout=CT.RETRY_COUNT)
-            if page.status_code != 200:
-                if retry_count < CT.RETRY_COUNT:
-                    page = __get_page(url, retry_count=retry_count+1)
-                else:
-                    __log_error(url, requests.ConnectionError,
-                                GetPageException())
-        except (requests.ConnectionError, requests.Timeout) as error:
-            if retry_count < CT.RETRY_COUNT:
-                page = __get_page(url, retry_count=retry_count+1)
-            else:
-                __log_error(url, requests.ConnectionError, GetPageException())
+        retry_strategy = Retry(
+            total=CT.RETRY_COUNT,
+            status_forcelist=[429, 500, 502, 503, 504],
+            method_whitelist=["HEAD", "GET", "OPTIONS"],
+            backoff_factor=1,
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        http = requests.Session()
+        http.mount("https://", adapter)
+        http.mount("http://", adapter)
 
-        if type(page) == bytes:
-            html= str(page, 'utf-8')
-        else:
-            html = page.content
+        try:
+            response = http.get(url)
+        except requests.exceptions.ConnectionError as e:
+            __log_error(url, e, GetPageException(url))
+
+        if response.status_code != 200:
+            __log_error(url, requests.exceptions.ConnectionError(),
+                        GetPageException(url))
 
         if __memcached__ and client:
-            client.set(url, html, expire=CT.CACHE_EXPIRE)
+            client.set(url, response.text.encode(), expire=CT.CACHE_EXPIRE)
 
-        return html
+        return response.text
+
 
 def __log_error(url, error, raise_error=None):
     """Log errors to a CSV file
@@ -95,6 +109,7 @@ def __log_error(url, error, raise_error=None):
     else:
         raise error
 
+
 def __get_field_names(get_details):
     """Get an list of field name for the output
     CSV. Extra field names are added if details
@@ -114,6 +129,7 @@ def __get_field_names(get_details):
     else:
         return PATH.SEARCH_FIELDS
 
+
 def __get_default_fields(get_details):
     """Get a default dictionary for a row in the
     output CSV
@@ -128,6 +144,7 @@ def __get_default_fields(get_details):
 
     fields = __get_field_names(get_details)
     return dict((field, None) for field in fields)
+
 
 def __write_csv_header(get_details):
     """Write header row to CSV output file
@@ -150,12 +167,13 @@ def __write_csv_header(get_details):
 
     writer = csv.DictWriter(csvfile,
                             fieldnames=fields, delimiter=',', quotechar='"',
-                        quoting=csv.QUOTE_MINIMAL,
-                        doublequote=True)
+                            quoting=csv.QUOTE_MINIMAL,
+                            doublequote=True)
     writer.writeheader()
 
     if __output__:
         csvfile.close()
+
 
 def __get_value(tag, selector, attribute=None, required=True, remove=None):
     """Retrieve a value from a BeautifulSoup
@@ -206,6 +224,7 @@ def __get_value(tag, selector, attribute=None, required=True, remove=None):
         else:
             return value
 
+
 def __write_csv_line(values):
     """Write row to CSV output file
 
@@ -232,6 +251,7 @@ def __write_csv_line(values):
     if __output__:
         csvfile.close()
 
+
 def __get_product(tag, get_details):
     """Extract the basic details of a product from a search result
     and if requested, retrieve detail product page and extract
@@ -257,7 +277,7 @@ def __get_product(tag, get_details):
         try:
             detail_page = __get_page(csv_entry['url'])
         except GetPageException as e:
-            raise ProductScrapeException()
+            raise ProductScrapeException(csv_entry['url'])
 
         detail = BeautifulSoup(detail_page, 'html.parser')
         for field_name, field in PATH.DETAIL_FIELDS.items():
@@ -265,6 +285,7 @@ def __get_product(tag, get_details):
                 csv_entry[field_name] = __get_value(detail, **field)
 
     return csv_entry
+
 
 def scrape_etsy(url,
                 output=None,
@@ -274,8 +295,7 @@ def scrape_etsy(url,
                 message_callback=None,
                 progress_callback=None,
                 fail_log_callback=None,
-                memcached=None
-               ):
+                memcached=None):
     """Navigate through the results of an Etsy search, extract
     product details to a CSV file and log failures
 
@@ -313,7 +333,6 @@ def scrape_etsy(url,
     global __fail_log_callback__
     __fail_log_callback__ = fail_log_callback
 
-
     product_count = 1
     success_count = 0
     fail_count = 0
@@ -336,6 +355,9 @@ def scrape_etsy(url,
         search_results = BeautifulSoup(page, 'html.parser')
         results = search_results.select(PATH.SEARCH_RESULT)
 
+        if len(results) == 0:
+            __log_error(url, NoResultsException(url), NoResultsException(url))
+
         for result in results:
             if result.select_one(PATH.RESULT_LINK) and (not limit or
                                                         product_count <=
@@ -346,7 +368,7 @@ def scrape_etsy(url,
 
                 try:
                     csv_entry = __get_product(result, get_details)
-                except (ProductScrapeException) as e:
+                except ProductScrapeException as e:
                     fail_count += 1
                     next
 
@@ -364,4 +386,4 @@ def scrape_etsy(url,
 
     if message_callback:
         message_callback(f'Scraped {success_count} products, failed to scrape '
-                     f'{fail_count}.')
+                         f'{fail_count}.')

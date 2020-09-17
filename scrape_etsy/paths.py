@@ -98,7 +98,7 @@ DETAIL_FIELDS = {
                            'required': False,
                            'tests': [
                            ]},
-    'shop_sales': {'selector': ('a[href=#shop_overview] '
+    'shop_sales': {'selector': ('a[href=\#shop_overview] '
                                 'span.wt-screen-reader-only'),
                    'required': False,
                    'remove': r',|\ sales',

@@ -30,7 +30,6 @@ __version__ = "0.0.1"
 __maintainer__ = "Phil Nicholls"
 __email__ = "phil.j.nicholls@gmail.com"
 __status__ = "Development"
-__tests__ = ["pep8", "todo"]
 '''
 
 

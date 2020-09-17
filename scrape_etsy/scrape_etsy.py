@@ -1,3 +1,5 @@
+# TODO Callback for csv output and remove giant list creation
+
 import sys
 import re
 import csv
@@ -8,12 +10,12 @@ from datetime import datetime
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-import constants as CT
-import paths as PATH
-from exceptions import (MissingValueException,
-                        GetPageException,
-                        ProductScrapeException,
-                        NoResultsException)
+import scrape_etsy.constants as CT
+import scrape_etsy.paths as PATH
+from scrape_etsy.exceptions import (MissingValueException,
+                                    GetPageException,
+                                    ProductScrapeException,
+                                    NoResultsException)
 
 __memcached__ = None
 __fail_log_callback__ = None
@@ -288,15 +290,15 @@ def __get_product(tag, get_details):
     return csv_entry
 
 
-def scrape_etsy(url,
-                output=None,
-                get_details=False,
-                fail_log=None,
-                limit=None,
-                message_callback=None,
-                progress_callback=None,
-                fail_log_callback=None,
-                memcached=None):
+def scrape(url,
+           output=None,
+           get_details=False,
+           fail_log=None,
+           limit=None,
+           message_callback=None,
+           progress_callback=None,
+           fail_log_callback=None,
+           memcached=None):
     """Navigate through the results of an Etsy search, extract
     product details to a CSV file and log failures
 
@@ -342,6 +344,7 @@ def scrape_etsy(url,
     search_rank = 0
 
     __write_csv_header(get_details)
+    scraped_data = []
 
     while not limit or (limit and product_count <= limit):
         if message_callback:
@@ -372,6 +375,7 @@ def scrape_etsy(url,
 
                 csv_entry['search_rank'] = search_rank
                 __write_csv_line(csv_entry.values())
+                scraped_data.append(csv_entry)
 
                 success_count += 1
                 product_count += 1
@@ -385,3 +389,5 @@ def scrape_etsy(url,
     if message_callback:
         message_callback(f'Scraped {success_count} products, failed to scrape '
                          f'{fail_count}.')
+
+    return scraped_data

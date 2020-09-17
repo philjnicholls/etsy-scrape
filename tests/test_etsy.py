@@ -10,9 +10,9 @@ import random
 import os
 import urllib.parse
 
-import scrape_etsy
-import standard_tests
-import paths
+from scrape_etsy.scrape_etsy import scrape
+from scrape_etsy import scrape_etsy
+from scrape_etsy import paths
 
 from bs4 import BeautifulSoup
 
@@ -49,8 +49,8 @@ class TestBasicResults():
         fp = tempfile.NamedTemporaryFile()
         self.output = fp.name
         fp.close()
-        scrape_etsy.scrape_etsy(get_search_url(), self.output,
-                                limit=10)
+        scrape(get_search_url(), self.output,
+               limit=10)
 
     def teardown(self):
         os.remove(self.output)
@@ -65,17 +65,17 @@ class TestBasicResults():
 
     def test_message_callback(self, search_url):
         message = mock.Mock()
-        scrape_etsy.scrape_etsy(search_url,
-                                limit=10,
-                                message_callback=message)
+        scrape(search_url,
+               limit=10,
+               message_callback=message)
 
         message.assert_called_with('Scraped 10 products, failed to scrape 0.')
 
     def test_progress_callback(self, search_url):
         progress = mock.Mock()
-        scrape_etsy.scrape_etsy(search_url,
-                                limit=10,
-                                progress_callback=progress)
+        scrape(search_url,
+               limit=10,
+               progress_callback=progress)
 
         progress.assert_called()
 
@@ -86,9 +86,9 @@ class TestDetailedResults():
         fp = tempfile.NamedTemporaryFile()
         self.output = fp.name
         fp.close()
-        scrape_etsy.scrape_etsy(self.search_url, self.output,
-                                limit=10, get_details=True,
-                                memcached='localhost:11211')
+        scrape(self.search_url, self.output,
+               limit=10, get_details=True,
+               memcached='localhost:11211')
 
     def teardown(self):
         os.remove(self.output)
@@ -102,17 +102,17 @@ class TestDetailedResults():
         _test_fields(self.output, paths.DETAIL_FIELDS)
 
     def test_cached_detail_results(self):
-        scrape_etsy.scrape_etsy(self.search_url, self.output,
-                                limit=10, get_details=True,
-                                memcached='localhost:11211')
+        scrape(self.search_url, self.output,
+               limit=10, get_details=True,
+               memcached='localhost:11211')
         line_count = len(open(self.output).readlines())
 
         assert line_count == 11
 
     def test_cached_detail_fields(self):
-        scrape_etsy.scrape_etsy(self.search_url, self.output,
-                                limit=10, get_details=True,
-                                memcached='localhost:11211')
+        scrape(self.search_url, self.output,
+               limit=10, get_details=True,
+               memcached='localhost:11211')
         _test_fields(self.output, paths.DETAIL_FIELDS)
 
 
@@ -151,9 +151,9 @@ def test_fail_log_callback():
     fp.close()
 
     fail_log = mock.Mock()
-    scrape_etsy.scrape_etsy('https://www.ddddetsy.com/search?q=test',
-                            limit=10,
-                            fail_log_callback=fail_log)
+    scrape('https://www.ddddetsy.com/search?q=test',
+           limit=10,
+           fail_log_callback=fail_log)
 
     fail_log.assert_called_with('https://www.ddddetsy.com/search?q=test',
                                 mock.ANY)
@@ -166,18 +166,17 @@ def test_fail_log():
     fail_log = fp.name
     fp.close()
 
-    scrape_etsy.scrape_etsy('https://www.notactuallyetsy.com/search?q=test', output,
-                            limit=10, fail_log=fail_log)
+    scrape('https://www.notactuallyetsy.com/search?q=test', output,
+           limit=10, fail_log=fail_log)
     line_count = len(open(fail_log).readlines())
 
     assert line_count > 0
 
 def test_write_to_std_out(search_url):
     # TODO Need to capture and test stdout
-    scrape_etsy.scrape_etsy(search_url, limit=10)
+    scrape(search_url, limit=10)
 
 def test_bad_product_url(search_url):
-    pu.db
     page = scrape_etsy.__get_page(search_url)
     search_results = BeautifulSoup(page, 'html.parser')
     results = search_results.select('div[data-search-results] '
@@ -196,8 +195,8 @@ def test_get_all_results():
     fp = tempfile.NamedTemporaryFile()
     output = fp.name
     fp.close()
-    scrape_etsy.scrape_etsy('https://www.etsy.com/il-en/search?q=bunny%20wizard%20hat',
-                            output)
+    scrape('https://www.etsy.com/il-en/search?q=bunny%20wizard%20hat',
+           output)
     line_count = len(open(output).readlines())
 
     assert line_count > 1

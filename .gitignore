@@ -131,3 +131,6 @@ dmypy.json
 # CSVs
 *.csv
 *.log
+
+# VIM junk
+*.swp

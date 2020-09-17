@@ -16,8 +16,6 @@ from scrape_etsy import paths
 
 from bs4 import BeautifulSoup
 
-from standard_tests import test_pep8
-
 def _test_fields(csv_path, fields):
     with open(csv_path, 'r') as fp:
         csv_reader = csv.DictReader(fp)

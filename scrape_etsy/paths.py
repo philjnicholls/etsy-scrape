@@ -1,13 +1,15 @@
 SEARCH_RESULT = 'div[data-search-results] li.wt-list-unstyled'
-SEARCH_PAGE_BUTTON='nav.search-pagination a.wt-btn'
+SEARCH_PAGE_BUTTON = 'nav.search-pagination a.wt-btn'
 RESULT_LINK = 'a.listing-link'
+
 
 def __is_type(value, type):
     try:
         type(value)
         return True
-    except ValueError as e:
+    except ValueError:
         return False
+
 
 SEARCH_FIELDS = {
     'title': {'selector': 'a.listing-link h3',
@@ -17,7 +19,7 @@ SEARCH_FIELDS = {
     'price_currency': {'selector': [
         'span.promotion-price span.currency-symbol',
         'span.n-listing-card__price > '
-                      'span.currency-symbol',
+        'span.currency-symbol',
     ], 'required': True,
         'tests': [
             lambda value: len(value) > 0,
@@ -25,7 +27,7 @@ SEARCH_FIELDS = {
     'price_value': {'selector': [
         'span.promotion-price span.currency-value',
         'span.n-listing-card__price > '
-                      'span.currency-value',
+        'span.currency-value',
     ], 'required': True,
         'tests': [
             lambda value: len(value) > 0,
@@ -39,18 +41,22 @@ SEARCH_FIELDS = {
                    '> span.currency-value', 'required': False,
                    'tests': [
                    ]},
-    'review_rating': {'selector': ('a.listing-link span.v2-listing-card__rating '
+    'review_rating': {'selector': ('a.listing-link '
+                                   'span.v2-listing-card__rating '
                                    '> span > span.screen-reader-only'),
                       'required': False, 'remove': r'\ out of 5 stars',
-                      'tests': [
-                          lambda value: __is_type(value, float) if len(value) > 0 else True,
-                      ]},
-    'review_count': {'selector': ('a.listing-link span.v2-listing-card__rating '
-                                   '> span.screen-reader-only'),
-                      'required': False, 'remove': r',|\ reviews',
-                      'tests': [
-                          lambda value: __is_type(value, int) if len(value) > 0 else True,
-                      ]},
+                      'tests': [(
+                          lambda value: __is_type(value, float)
+                          if len(value) > 0 else True,
+                      )]},
+    'review_count': {'selector': ('a.listing-link '
+                                  'span.v2-listing-card__rating '
+                                  '> span.screen-reader-only'),
+                     'required': False, 'remove': r',|\ reviews',
+                     'tests': [(
+                          lambda value: __is_type(value, int)
+                          if len(value) > 0 else True,
+                      )]},
     'url': {'selector': 'a.listing-link', 'attribute': 'href',
             'tests': [
                 lambda value: len(value) > 0,
@@ -62,31 +68,40 @@ SEARCH_FIELDS = {
 
 DETAIL_FIELDS = {
     'shipping_currency': {'selector': ('div[data-estimated-shipping] '
-                                   'span.currency-symbol'), 'required': False,
+                                       'span.currency-symbol'),
+                          'required': False,
                           'tests': [
                           ]},
     'shipping_value': {'selector': ('div[data-estimated-shipping] '
-                                'span.currency-value'), 'required': False,
-                       'tests': [
-                           lambda value: __is_type(value, float) if len(value) > 0 else True,
-                       ]},
-    'description': {'selector': 'p[data-product-details-description-text-content]',
+                                    'span.currency-value'), 'required': False,
+                       'tests': [(
+                           lambda value: __is_type(value, float)
+                           if len(value) > 0 else True,
+                       )]},
+    'description': {'selector':
+                    ('p[data-product-details-'
+                     'description-text-content]'),
                     'tests': [
                         lambda value: len(value) > 0,
                     ]},
-    'processing_time': {'selector': 'div[data-processing-time] > p', 'required': False,
+    'processing_time': {'selector': 'div[data-processing-time] > p',
+                        'required': False,
                         'tests': [
                         ]},
-    'materials': {'selector': 'span[data-legacy-materials-text]', 'required': False,
+    'materials': {'selector': 'span[data-legacy-materials-text]',
+                  'required': False,
                   'tests': [
                   ]},
-    'estimated_delivery': {'selector': 'p[data-edd-absolute]', 'required': False,
+    'estimated_delivery': {'selector': 'p[data-edd-absolute]',
+                           'required': False,
                            'tests': [
                            ]},
-    'shop_sales': {'selector': ('a[href=\#shop_overview] '
-                                 'span.wt-screen-reader-only'), 'required':False,
+    'shop_sales': {'selector': ('a[href=#shop_overview] '
+                                'span.wt-screen-reader-only'),
+                   'required': False,
                    'remove': r',|\ sales',
-                   'tests': [
-                       lambda value: __is_type(value, int) if len(value) > 0 else True,
-                   ]},
+                   'tests': [(
+                       lambda value: __is_type(value, int)
+                       if len(value) > 0 else True,
+                   )]},
 }

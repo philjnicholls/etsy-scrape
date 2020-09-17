@@ -1,3 +1,5 @@
+# TODO Wildcard domain name pattern in dict for site settings
+
 SEARCH_RESULT = 'div[data-search-results] li.wt-list-unstyled'
 SEARCH_PAGE_BUTTON = 'nav.search-pagination a.wt-btn'
 RESULT_LINK = 'a.listing-link'

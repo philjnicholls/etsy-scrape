@@ -14,8 +14,7 @@ import scrape_etsy.constants as CT
 import scrape_etsy.paths as PATH
 from scrape_etsy.exceptions import (MissingValueException,
                                     GetPageException,
-                                    ProductScrapeException,
-                                    NoResultsException)
+                                    ProductScrapeException)
 
 __memcached__ = None
 __fail_log_callback__ = None
@@ -211,7 +210,7 @@ def __get_value(tag, selector, attribute=None, required=True, remove=None,
                 )[attribute]
             else:
                 value = tag.select_one(selector).text.strip()
-        except AttributeError as e:
+        except AttributeError:
             pass
 
     # Log an error if no value was found and field is required
@@ -279,7 +278,7 @@ def __get_product(tag, get_details):
         # Get the product listing page
         try:
             detail_page = __get_page(csv_entry['url'])
-        except GetPageException as e:
+        except GetPageException:
             raise ProductScrapeException(csv_entry['url'])
 
         detail = BeautifulSoup(detail_page, 'html.parser')
@@ -352,7 +351,7 @@ def scrape(url,
 
         try:
             page = __get_page(url)
-        except GetPageException as e:
+        except GetPageException:
             fail_count += 1
             break
 
@@ -369,7 +368,7 @@ def scrape(url,
 
                 try:
                     csv_entry = __get_product(result, get_details)
-                except ProductScrapeException as e:
+                except ProductScrapeException:
                     fail_count += 1
                     next
 

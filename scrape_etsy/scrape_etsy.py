@@ -1,3 +1,5 @@
+# TODO Callback for csv output and remove giant list creation
+
 import sys
 import re
 import csv

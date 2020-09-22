@@ -47,18 +47,18 @@ SEARCH_FIELDS = {
                                    'span.v2-listing-card__rating '
                                    '> span > span.screen-reader-only'),
                       'required': False, 'remove': r'\ out of 5 stars',
-                      'tests': [(
+                      'tests': [
                           lambda value: __is_type(value, float)
                           if len(value) > 0 else True,
-                      )]},
+                      ]},
     'review_count': {'selector': ('a.listing-link '
                                   'span.v2-listing-card__rating '
                                   '> span.screen-reader-only'),
                      'required': False, 'remove': r',|\ reviews',
-                     'tests': [(
+                     'tests': [
                           lambda value: __is_type(value, int)
                           if len(value) > 0 else True,
-                      )]},
+                      ]},
     'url': {'selector': 'a.listing-link', 'attribute': 'href',
             'tests': [
                 lambda value: len(value) > 0,
@@ -76,10 +76,10 @@ DETAIL_FIELDS = {
                           ]},
     'shipping_value': {'selector': ('div[data-estimated-shipping] '
                                     'span.currency-value'), 'required': False,
-                       'tests': [(
+                       'tests': [
                            lambda value: __is_type(value, float)
                            if len(value) > 0 else True,
-                       )]},
+                       ]},
     'description': {'selector':
                     ('p[data-product-details-'
                      'description-text-content]'),
@@ -102,8 +102,8 @@ DETAIL_FIELDS = {
                                 'span.wt-screen-reader-only'),
                    'required': False,
                    'remove': r',|\ sales',
-                   'tests': [(
+                   'tests': [
                        lambda value: __is_type(value, int)
                        if len(value) > 0 else True,
-                   )]},
+                   ]},
 }
